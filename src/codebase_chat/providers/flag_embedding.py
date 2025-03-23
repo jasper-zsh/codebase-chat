@@ -79,7 +79,7 @@ def start_server(
     app = FastAPI(title="FlagEmbedding Rerank Service")
 
 
-    def get_model(model_name: str = "BAAI/bge-reranker-large", use_fp16: bool = True) -> FlagReranker:
+    def get_model(model_name: str = "BAAI/bge-reranker-v2-m3", use_fp16: bool = True) -> FlagReranker:
         """获取或初始化模型实例（单例模式）"""
         global _model
         if _model is None:
