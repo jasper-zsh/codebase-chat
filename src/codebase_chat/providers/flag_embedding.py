@@ -68,7 +68,7 @@ _model = None
 def start_server(
     host: str = "0.0.0.0",
     port: int = 9000,
-    model_name: str = "BAAI/bge-reranker-large",
+    model_name: str = "BAAI/bge-reranker-v2-m3",
     use_fp16: bool = True
 ):
     import uvicorn
