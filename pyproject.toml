@@ -1,0 +1,40 @@
+[project]
+name = "codebase-chat"
+version = "0.1.0"
+description = "A tool for code repository analysis and vector embedding for RAG applications"
+authors = []
+dependencies = [
+    "typer>=0.9.0",
+    "lancedb>=0.4",
+    "gitpython>=3.1.40",
+    "pydantic>=2.5.2",
+    "rich>=13.7.0",
+    "aiohttp>=3.9.1",
+    "flagembedding>=1.3.4",
+    "fastapi>=0.115.11",
+    "httpx>=0.28.1",
+    "uvicorn>=0.34.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.3",
+    "black>=23.11.0",
+    "isort>=5.12.0",
+    "mypy>=1.7.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/codebase_chat"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39"]
+
+[tool.isort]
+profile = "black"
+line_length = 100 
