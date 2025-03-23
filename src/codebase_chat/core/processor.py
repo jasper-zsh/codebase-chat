@@ -154,35 +154,47 @@ class CodeProcessor:
         """搜索相似代码块
         
         使用多阶段搜索策略：
-        1. 查询翻译：如果有翻译器，将查询翻译成英文并与原始查询拼接
-        2. 向量召回：使用拼接后的查询进行一次性召回
-        3. 重排序：对召回结果进行重排序
+        1. 查询翻译：如果有翻译器，将查询翻译成英文
+        2. 向量召回：分别使用原始查询和翻译后的查询进行召回
+        3. 重排序：合并召回结果后根据原始查询进行重排序
         """
         table = self.db.open_table(self.table_name)
         
-        # 第一阶段：查询翻译和拼接
-        combined_query = query  # 初始查询
-        # 检测语言
-        lang = await self.translator_provider.detect_language(query)
+        # 第一阶段：查询翻译
         translated = None
+        lang = await self.translator_provider.detect_language(query)
         if lang != "en":
-            # 如果不是英文，翻译成英文并拼接
             translated = await self.translator_provider.translate(
                 query,
                 source_lang=lang,
                 target_lang="en",
                 preserve_format=True
             )
-            # 使用换行符分隔原始查询和翻译后的查询
-            combined_query = f"{query}\n{translated}"
         
         # 第二阶段：向量召回
-        initial_limit = limit * 3  # 获取3倍的候选结果
-        query_embedding = await self._get_query_embedding(combined_query)
+        initial_limit = limit * 2  # 每个查询获取2倍的候选结果
+        
+        # 使用原始查询召回
+        query_embedding = await self._get_query_embedding(query)
         candidates = table.search(
             query_embedding,
             vector_column_name="embedding"
         ).limit(initial_limit).to_list()
+        
+        # 如果有翻译结果，使用翻译后的查询再次召回
+        if translated:
+            translated_embedding = await self._get_query_embedding(translated)
+            translated_candidates = table.search(
+                translated_embedding,
+                vector_column_name="embedding"
+            ).limit(initial_limit).to_list()
+            
+            # 合并结果，去重
+            seen = {f'{c["file_path"]}:{c["start_line"]}-{c["end_line"]}' for c in candidates}
+            for c in translated_candidates:
+                if f'{c["file_path"]}:{c["start_line"]}-{c["end_line"]}' not in seen:
+                    candidates.append(c)
+                    seen.add(f'{c["file_path"]}:{c["start_line"]}-{c["end_line"]}')
         
         if not candidates:
             return []

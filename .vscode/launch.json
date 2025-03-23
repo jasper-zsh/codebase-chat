@@ -5,12 +5,21 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: Current File with Arguments",
+            "name": "index",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
             "args": ["index", "--model", "nomic-embed-text", "../ones-api-biz-common"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "mcp_server",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "console": "integratedTerminal",
+            "args": ["mcp-server"],
             "cwd": "${workspaceFolder}"
         }
     ]
