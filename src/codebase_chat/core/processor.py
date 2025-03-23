@@ -172,7 +172,7 @@ class CodeProcessor:
             )
         
         # 第二阶段：向量召回
-        initial_limit = limit * 2  # 每个查询获取2倍的候选结果
+        initial_limit = limit * 4  # 每个查询获取4倍的候选结果
         
         # 使用原始查询召回
         query_embedding = await self._get_query_embedding(query)

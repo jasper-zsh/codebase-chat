@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
-            "args": ["index", "--model", "nomic-embed-text", "../ones-api-biz-common"],
+            "args": ["index", "../ones-api-biz-common"],
             "cwd": "${workspaceFolder}"
         },
         {

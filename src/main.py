@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 
 from codebase_chat.core.processor import CodeProcessor, ProcessingStats
 from codebase_chat.strategies.line_chunker import LineChunkStrategy
+from codebase_chat.strategies.golang_chunker import GolangChunkStrategy
 from codebase_chat.providers.ollama import OllamaEmbeddingProvider, OllamaTranslatorProvider
 from codebase_chat.providers.flag_embedding import FlagEmbeddingRerankProvider, start_server
 
@@ -69,6 +70,7 @@ def get_processor(
 ) -> CodeProcessor:
     """创建代码处理器实例"""
     chunk_strategy = LineChunkStrategy(chunk_size=chunk_size, overlap=overlap)
+    # chunk_strategy = GolangChunkStrategy()
     embedding_provider = OllamaEmbeddingProvider(model=model, batch_size=batch_size)
     rerank_provider = FlagEmbeddingRerankProvider(base_url=reranker_url) if use_reranker else None
     translator_provider = OllamaTranslatorProvider(model=translator_model) if use_translator else None
@@ -200,7 +202,7 @@ def mcp_server(
     )
 
     @server.tool()
-    async def search(query: str = Field(description="用户输入的原始问题")) -> str:
+    async def search(query: str = Field(description="用户输入的原始问题，接受自然语言，不需要提取关键词")) -> str:
         """搜索代码仓"""
         results = await processor.search(query, limit=10)
         # 将搜索结果转换为字典列表
