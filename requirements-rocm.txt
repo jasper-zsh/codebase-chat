@@ -122,18 +122,6 @@ multidict==6.2.0
     #   yarl
 multiprocess==0.70.16
     # via datasets
-numpy==2.2.4
-    # via
-    #   accelerate
-    #   datasets
-    #   ir-datasets
-    #   pandas
-    #   peft
-    #   pylance
-    #   scikit-learn
-    #   scipy
-    #   transformers
-    #   trec-car-tools
 overrides==7.7.0
     # via lancedb
 packaging==24.2
@@ -279,3 +267,4 @@ yarl==1.18.3
     # via aiohttp
 zlib-state==0.1.9
     # via ir-datasets
+-e .
