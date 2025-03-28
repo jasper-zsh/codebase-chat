@@ -6,6 +6,7 @@ import lancedb
 import pyarrow as pa
 import time
 import numpy as np
+from mcp.server.fastmcp.server import Context
 from dataclasses import dataclass
 from ..models.code_chunk import CodeChunk
 from ..strategies.base import BaseChunkStrategy
@@ -50,7 +51,7 @@ class CodeProcessor:
         translator_provider: Optional[BaseTranslatorProvider] = None,
         table_name: str = "code_chunks",
         middlewares: Optional[List[BaseMiddleware]] = None,
-        progress_callback: Optional[Callable[[ProcessingStats], None]] = None
+        progress_callback: Optional[Callable[[ProcessingStats], None]] = None,
     ):
         self.db = lancedb.connect(db_path)
         self.chunk_strategy = chunk_strategy
@@ -62,7 +63,7 @@ class CodeProcessor:
         self.stats = ProcessingStats()
         self.progress_callback = progress_callback
         self._last_callback_time = 0
-        
+
         schema = pa.schema([
             ("file_path", pa.string()),
             ("start_line", pa.int32()),
@@ -150,7 +151,7 @@ class CodeProcessor:
             
         return self.stats
         
-    async def search(self, query: str, limit: int = 5) -> List[Tuple[CodeChunk, float]]:
+    async def search(self, query: str, limit: int = 5, context: Optional[Context] = None) -> List[Tuple[CodeChunk, float]]:
         """搜索相似代码块
         
         使用多阶段搜索策略：
@@ -164,6 +165,8 @@ class CodeProcessor:
         translated = None
         lang = await self.translator_provider.detect_language(query)
         if lang != "en":
+            if context:
+                await context.info(f"翻译查询: {query} 到英文")
             translated = await self.translator_provider.translate(
                 query,
                 source_lang=lang,
@@ -175,6 +178,8 @@ class CodeProcessor:
         initial_limit = limit * 4  # 每个查询获取4倍的候选结果
         
         # 使用原始查询召回
+        if context:
+            await context.info(f"使用原始查询召回: {query}")
         query_embedding = await self._get_query_embedding(query)
         candidates = table.search(
             query_embedding,
@@ -183,6 +188,8 @@ class CodeProcessor:
         
         # 如果有翻译结果，使用翻译后的查询再次召回
         if translated:
+            if context:
+                await context.info(f"使用翻译后的查询召回: {translated}")
             translated_embedding = await self._get_query_embedding(translated)
             translated_candidates = table.search(
                 translated_embedding,
@@ -203,7 +210,9 @@ class CodeProcessor:
         if self.rerank_provider:
             # 使用专门的重排序提供者
             # 使用原始查询进行重排序
-            reranked_results = await self.rerank_provider.rerank(query, candidates)
+            if context:
+                await context.info(f"使用原始查询进行重排序")
+            reranked_results = await self.rerank_provider.rerank(translated, candidates)
         else:
             # 使用默认的余弦相似度重排序
             reranked_results = self._default_rerank(candidates, query_embedding)

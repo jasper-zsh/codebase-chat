@@ -9,15 +9,12 @@ class FlagEmbeddingRerankProvider(BaseRerankProvider):
     def __init__(
         self,
         base_url: str = "http://localhost:9000",
-        batch_size: int = 32
     ):
         """
         Args:
             base_url: 重排序服务的基础URL
-            batch_size: 批处理大小
         """
         self.base_url = base_url
-        self.batch_size = batch_size
         
     async def rerank(
         self,
@@ -40,24 +37,21 @@ class FlagEmbeddingRerankProvider(BaseRerankProvider):
         # 准备文本
         texts = [candidate["content"] for candidate in candidates]
         
-        # 分批处理
-        all_scores = []
+        # 一次性处理所有文本
         async with httpx.AsyncClient(timeout=60) as client:
-            for i in range(0, len(texts), self.batch_size):
-                batch_texts = texts[i:i + self.batch_size]
-                response = await client.post(
-                    f"{self.base_url}/rerank",
-                    json={
-                        "query": query,
-                        "texts": batch_texts,
-                        "return_scores": return_scores
-                    }
-                )
-                response.raise_for_status()
-                all_scores.extend(response.json()["scores"])
+            response = await client.post(
+                f"{self.base_url}/rerank",
+                json={
+                    "query": query,
+                    "texts": texts,
+                    "return_scores": return_scores
+                }
+            )
+            response.raise_for_status()
+            scores = response.json()["scores"]
         
         # 将分数与候选结果配对并排序
-        scored_results = list(zip(candidates, all_scores))
+        scored_results = list(zip(candidates, scores))
         scored_results.sort(key=lambda x: x[1], reverse=True)
         
         return scored_results if return_scores else [r[0] for r in scored_results]

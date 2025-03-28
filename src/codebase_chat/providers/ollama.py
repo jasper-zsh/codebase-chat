@@ -123,16 +123,16 @@ class OllamaEmbeddingProvider(BaseEmbeddingProvider):
 class OllamaEmbeddingProvider(BaseEmbeddingProvider):
     """使用Ollama生成嵌入向量"""
     
-    def __init__(self, model: str = "codellama", batch_size: int = 10):
+    def __init__(self, model: str = "codellama", base_url: str = "http://localhost:11434", batch_size: int = 10):
         self.model = model
         self.batch_size = batch_size
-        self.base_url = "http://localhost:11434/api"
+        self.base_url = base_url.rstrip('/')
         
     async def _get_embedding(self, text: str) -> List[float]:
         """获取单个文本的嵌入向量"""
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{self.base_url}/embeddings",
+                f"{self.base_url}/api/embeddings",
                 json={"model": self.model, "prompt": text}
             )
             response.raise_for_status()

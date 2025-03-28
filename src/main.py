@@ -1,39 +1,27 @@
 import asyncio
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List
 import os
 import typer
 from rich.console import Console
 from rich.table import Table
 from rich.live import Live
-from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn
 from dotenv import load_dotenv
 
 from codebase_chat.core.processor import CodeProcessor, ProcessingStats
 from codebase_chat.strategies.line_chunker import LineChunkStrategy
-from codebase_chat.strategies.golang_chunker import GolangChunkStrategy
-from codebase_chat.providers.ollama import OllamaEmbeddingProvider, OllamaTranslatorProvider
-from codebase_chat.providers.flag_embedding import FlagEmbeddingRerankProvider, start_server
+from codebase_chat.providers.flag_embedding import start_server
+from codebase_chat.models.code_chunk import CodeChunk
+from codebase_chat.providers.factory import ProviderFactory
 
 # 加载.env文件
 load_dotenv()
 
 # 从环境变量获取配置，如果不存在则使用默认值
-DEFAULT_DB_PATH = os.getenv("CODEBASE_DB_PATH", "./codebase.db")
-DEFAULT_CHUNK_SIZE = int(os.getenv("CODEBASE_CHUNK_SIZE", "100"))
-DEFAULT_OVERLAP = int(os.getenv("CODEBASE_OVERLAP", "10"))
-DEFAULT_BATCH_SIZE = int(os.getenv("CODEBASE_BATCH_SIZE", "10"))
-DEFAULT_EMBEDDING_MODEL = os.getenv("CODEBASE_EMBEDDING_MODEL", "codellama")
-DEFAULT_TRANSLATOR_MODEL = os.getenv("CODEBASE_TRANSLATOR_MODEL", "qwen:14b")
-DEFAULT_RERANKER_MODEL = os.getenv("CODEBASE_RERANKER_MODEL", "BAAI/bge-reranker-large")
-DEFAULT_RERANKER_URL = os.getenv("CODEBASE_RERANKER_URL", "http://localhost:9000")
-DEFAULT_OLLAMA_HOST = os.getenv("OLLAMA_HOST", "localhost")
-DEFAULT_OLLAMA_PORT = int(os.getenv("OLLAMA_PORT", "11434"))
-DEFAULT_RERANKER_HOST = os.getenv("RERANKER_HOST", "0.0.0.0")
-DEFAULT_RERANKER_PORT = int(os.getenv("RERANKER_PORT", "8000"))
-DEFAULT_MCP_HOST = os.getenv("MCP_HOST", "0.0.0.0")
-DEFAULT_MCP_PORT = int(os.getenv("MCP_PORT", "8080"))
-
+DEFAULT_DB_PATH = os.getenv("DB_PATH", "codebase.db")
+DEFAULT_CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "100"))
+DEFAULT_OVERLAP = int(os.getenv("OVERLAP", "10"))
+DEFAULT_BATCH_SIZE = int(os.getenv("BATCH_SIZE", "10"))
 
 app = typer.Typer()
 console = Console()
@@ -57,23 +45,17 @@ def create_stats_table(stats: ProcessingStats) -> Table:
     return stats_table
 
 def get_processor(
-    db_path: str,
-    chunk_size: int = 10,
-    overlap: int = 2,
-    model: str = "codellama",
-    batch_size: int = 10,
-    use_reranker: bool = True,
-    reranker_url: str = "http://localhost:8000",
-    use_translator: bool = True,
-    translator_model: str = "qwen:14b",
+    db_path: str = DEFAULT_DB_PATH,
+    chunk_size: int = DEFAULT_CHUNK_SIZE,
+    overlap: int = DEFAULT_OVERLAP,
     progress_callback = None
 ) -> CodeProcessor:
     """创建代码处理器实例"""
     chunk_strategy = LineChunkStrategy(chunk_size=chunk_size, overlap=overlap)
     # chunk_strategy = GolangChunkStrategy()
-    embedding_provider = OllamaEmbeddingProvider(model=model, batch_size=batch_size)
-    rerank_provider = FlagEmbeddingRerankProvider(base_url=reranker_url) if use_reranker else None
-    translator_provider = OllamaTranslatorProvider(model=translator_model) if use_translator else None
+    embedding_provider = ProviderFactory.create_embedding_provider()
+    rerank_provider = ProviderFactory.create_rerank_provider()
+    translator_provider = ProviderFactory.create_translator_provider()
     
     return CodeProcessor(
         db_path,
@@ -86,9 +68,9 @@ def get_processor(
 
 @app.command()
 def serve(
-    host: str = typer.Option(DEFAULT_RERANKER_HOST, help="服务器主机地址"),
-    port: int = typer.Option(DEFAULT_RERANKER_PORT, help="服务器端口"),
-    model: str = typer.Option(DEFAULT_RERANKER_MODEL, help="重排序模型名称"),
+    host: str = typer.Option(os.getenv("FLAG_EMBEDDING_SERVER_HOST", "0.0.0.0"), help="服务器主机地址"),
+    port: int = typer.Option(os.getenv("FLAG_EMBEDDING_SERVER_PORT", "9000"), help="服务器端口"),
+    model: str = typer.Option(os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3"), help="重排序模型名称"),
     use_fp16: bool = typer.Option(True, help="是否使用半精度浮点数"),
 ):
     """启动重排序服务器"""
@@ -103,8 +85,6 @@ def index(
     db_path: str = typer.Option(DEFAULT_DB_PATH, help="数据库路径"),
     chunk_size: int = typer.Option(DEFAULT_CHUNK_SIZE, help="代码块大小（行数）"),
     overlap: int = typer.Option(DEFAULT_OVERLAP, help="相邻代码块重叠行数"),
-    model: str = typer.Option(DEFAULT_EMBEDDING_MODEL, help="Ollama模型名称"),
-    batch_size: int = typer.Option(DEFAULT_BATCH_SIZE, help="批处理大小"),
 ):
     """索引代码文件到向量数据库"""
     # 收集所有文件路径
@@ -130,7 +110,7 @@ def index(
             live.refresh()
             
         processor = get_processor(
-            db_path, chunk_size, overlap, model, batch_size,
+            db_path, chunk_size, overlap,
             progress_callback=update_progress
         )
         
@@ -145,20 +125,10 @@ def search(
     query: str = typer.Argument(..., help="搜索查询"),
     db_path: str = typer.Option(DEFAULT_DB_PATH, help="数据库路径"),
     limit: int = typer.Option(5, help="返回结果数量"),
-    model: str = typer.Option(DEFAULT_EMBEDDING_MODEL, help="Ollama模型名称"),
-    use_reranker: bool = typer.Option(True, help="是否使用重排序模型"),
-    reranker_url: str = typer.Option(DEFAULT_RERANKER_URL, help="重排序服务URL"),
-    use_translator: bool = typer.Option(True, help="是否使用翻译器进行双语查询"),
-    translator_model: str = typer.Option(DEFAULT_TRANSLATOR_MODEL, help="翻译器模型名称"),
 ):
     """搜索相似代码块"""
     processor = get_processor(
         db_path,
-        model=model,
-        use_reranker=use_reranker,
-        reranker_url=reranker_url,
-        use_translator=use_translator,
-        translator_model=translator_model
     )
     
     results = asyncio.run(processor.search(query, limit))
@@ -184,27 +154,26 @@ def search(
 
 @app.command()
 def mcp_server(
-    host: str = typer.Option(DEFAULT_MCP_HOST, help="服务器主机地址"),
-    port: int = typer.Option(DEFAULT_MCP_PORT, help="服务器端口"),
+    host: str = typer.Option(os.getenv("MCP_HOST", "0.0.0.0"), help="服务器主机地址"),
+    port: int = typer.Option(os.getenv("MCP_PORT", "8000"), help="服务器端口"),
 ):
     """启动代码仓检索服务器"""
     from mcp.server import FastMCP
-    from mcp.server.fastmcp.server import Field
+    from mcp.server.fastmcp.server import Field, Context
 
     server = FastMCP('CodebaseChat')
     processor = get_processor(
         DEFAULT_DB_PATH,
-        model=DEFAULT_EMBEDDING_MODEL,
-        use_reranker=True,
-        reranker_url=DEFAULT_RERANKER_URL,
-        use_translator=True,
-        translator_model=DEFAULT_TRANSLATOR_MODEL
+        chunk_size=DEFAULT_CHUNK_SIZE,
+        overlap=DEFAULT_OVERLAP,
+        progress_callback=None
     )
 
     @server.tool()
-    async def search(query: str = Field(description="用户输入的原始问题，接受自然语言，不需要提取关键词")) -> str:
+    async def search(query: str = Field(description="用户输入的原始问题，接受自然语言，不需要提取关键词"), context: Context = None) -> str:
         """搜索代码仓"""
-        results = await processor.search(query, limit=10)
+        await context.info(f"搜索代码仓: {query}")
+        results = await processor.search(query, limit=10, context=context)
         # 将搜索结果转换为字典列表
         formatted_result = ''
         for chunk, score in results:
