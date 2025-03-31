@@ -130,7 +130,7 @@ class OllamaEmbeddingProvider(BaseEmbeddingProvider):
         
     async def _get_embedding(self, text: str) -> List[float]:
         """获取单个文本的嵌入向量"""
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=60) as client:
             response = await client.post(
                 f"{self.base_url}/embeddings",
                 json={"model": self.model, "prompt": text}
@@ -171,7 +171,7 @@ class OllamaTranslatorProvider(BaseTranslatorProvider):
         model: str = "qwen:14b",
         base_url: str = "http://localhost:11434",
         batch_size: int = 5,
-        system_prompt: str = "你是一个专业的翻译助手。请准确翻译用户的文本，保持格式不变。对于代码注释和文档，保持专业性和准确性。"
+        system_prompt: str = "你是一个专业的翻译助手。请准确翻译用户的文本，保持格式不变。对于代码注释和文档，保持专业性和准确性。请只返回翻译结果，不要多余的解释。"
     ):
         """
         Args:

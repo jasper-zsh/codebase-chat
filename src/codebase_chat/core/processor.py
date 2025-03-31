@@ -64,6 +64,7 @@ class CodeProcessor:
         self._last_callback_time = 0
         
         schema = pa.schema([
+            ("repo_name", pa.string()),
             ("file_path", pa.string()),
             ("start_line", pa.int32()),
             ("end_line", pa.int32()),
@@ -81,8 +82,14 @@ class CodeProcessor:
         except (git.InvalidGitRepositoryError, git.NoSuchPathError):
             return None
             
-    async def process_file(self, file_path: Path) -> List[CodeChunk]:
-        """处理单个文件"""
+    async def process_file(self, file_path: Path, repo_path: Path, repo_name: str) -> List[CodeChunk]:
+        """处理单个文件
+        
+        Args:
+            file_path: 文件的完整路径
+            repo_path: 仓库根目录路径
+            repo_name: 仓库名称
+        """
         start_time = time.time()
         
         if not file_path.exists():
@@ -95,7 +102,7 @@ class CodeProcessor:
         branch = self._get_repo_info(file_path)
         
         # 切分代码块
-        chunks = list(self.chunk_strategy.chunk_file(file_path, content))
+        chunks = list(self.chunk_strategy.chunk_file(file_path, content, repo_path, repo_name))
         
         # 设置分支信息
         for chunk in chunks:
@@ -124,8 +131,14 @@ class CodeProcessor:
         
         return chunks
         
-    async def index_files(self, files: List[Path]) -> ProcessingStats:
-        """索引多个文件"""
+    async def index_files(self, files: List[Path], repo_path: Path, repo_name: str) -> ProcessingStats:
+        """索引多个文件
+        
+        Args:
+            files: 要处理的文件路径列表
+            repo_path: 仓库根目录路径
+            repo_name: 仓库名称
+        """
         start_time = time.time()
         table = self.db.open_table(self.table_name)
         
@@ -134,14 +147,15 @@ class CodeProcessor:
         self._last_callback_time = time.time()
         
         for file_path in files:
-            chunks = await self.process_file(file_path)
-            if len(chunks) == 0:
-                continue
-            # 转换为字典并存储
-            records = [chunk.to_dict() for chunk in chunks]
-            table.add(records)
-            self.stats.total_files += 1
-            
+            if file_path.is_file():  # 确保只处理文件
+                chunks = await self.process_file(file_path, repo_path, repo_name)
+                if len(chunks) == 0:
+                    continue
+                # 转换为字典并存储
+                records = [chunk.to_dict() for chunk in chunks]
+                table.add(records)
+                self.stats.total_files += 1
+                
         self.stats.processing_time = time.time() - start_time
         
         # 确保最后一次进度更新
@@ -248,7 +262,9 @@ class CodeProcessor:
             file_path="",
             start_line=0,
             end_line=0,
-            content=query
+            content=query,
+            repo_name="",
+            branch=""
         )
         embedded_chunks = await self.embedding_provider.embed_chunks([dummy_chunk])
         return embedded_chunks[0].embedding 

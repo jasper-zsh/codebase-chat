@@ -8,6 +8,7 @@ from rich.table import Table
 from rich.live import Live
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn
 from dotenv import load_dotenv
+import gitignore_parser
 
 from codebase_chat.core.processor import CodeProcessor, ProcessingStats
 from codebase_chat.strategies.line_chunker import LineChunkStrategy
@@ -107,34 +108,56 @@ def index(
     batch_size: int = typer.Option(DEFAULT_BATCH_SIZE, help="批处理大小"),
 ):
     """索引代码文件到向量数据库"""
-    # 收集所有文件路径
-    files = []
-    for path in paths:
-        if path.is_file():
-            files.append(path)
-        elif path.is_dir():
-            files.extend(path.rglob("*"))
-            
-    # 过滤掉不需要的文件
-    files = [
-        f for f in files 
-        if f.is_file() and not any(part.startswith('.') and part not in ['.', '..'] for part in f.parts)
-    ]
+    # 收集所有目录路径
+    directories = [path for path in paths if path.is_dir()]
     
-    console.print(f"Found {len(files)} files to process")
+    # 确保至少有一个目录
+    if not directories:
+        console.print("请提供至少一个有效的目录路径。")
+        return
     
-    # 创建实时更新界面
-    with Live(auto_refresh=False) as live:
-        def update_progress(stats: ProcessingStats):
-            live.update(create_stats_table(stats))
-            live.refresh()
-            
-        processor = get_processor(
-            db_path, chunk_size, overlap, model, batch_size,
-            progress_callback=update_progress
-        )
+    for repo_path in directories:
+        files = []
         
-        final_stats = asyncio.run(processor.index_files(files))
+        # 检查是否存在 .gitignore 文件
+        gitignore_path = repo_path / '.gitignore'
+        gitignore = None
+        if gitignore_path.exists():
+            # 解析 .gitignore 文件
+            gitignore = gitignore_parser.parse_gitignore(str(gitignore_path), repo_path)
+        
+        for path in repo_path.rglob("*"):
+            if path.is_file():
+                # 根据 .gitignore 规则过滤文件
+                if gitignore and gitignore(path):
+                    print(f'Ignore {path}')
+                    continue
+                if '.git' in path.parts:
+                    continue
+                # 跳过二进制文件
+                try:
+                    with open(path, 'r', encoding='utf-8') as f:
+                        f.read(16)  # 尝试读取文件开头部分
+                except UnicodeDecodeError:
+                    print(f'跳过二进制文件: {path}')
+                    continue
+                files.append(path)
+        
+        console.print(f"Found {len(files)} files to process in directory: {repo_path}")
+        
+        # 创建实时更新界面
+        with Live(auto_refresh=False) as live:
+            def update_progress(stats: ProcessingStats):
+                live.update(create_stats_table(stats))
+                live.refresh()
+                
+            processor = get_processor(
+                db_path, chunk_size, overlap, model, batch_size,
+                progress_callback=update_progress
+            )
+            
+            # 只传递当前目录作为 repo_name
+            final_stats = asyncio.run(processor.index_files(files, repo_path, repo_path.name))
         
     # 显示最终统计信息
     console.print("\n[bold green]处理完成！最终统计：[/bold green]")
@@ -184,6 +207,7 @@ def search(
 
 @app.command()
 def mcp_server(
+    transport: str = typer.Argument("sse", help="传输协议"),
     host: str = typer.Option(DEFAULT_MCP_HOST, help="服务器主机地址"),
     port: int = typer.Option(DEFAULT_MCP_PORT, help="服务器端口"),
 ):
@@ -215,7 +239,7 @@ def mcp_server(
 '''
         return formatted_result
 
-    server.run(transport="sse")
+    server.run(transport=transport)
 
 if __name__ == "__main__":
     app() 
