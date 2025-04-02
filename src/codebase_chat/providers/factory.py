@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any
 from .base import BaseRerankProvider, BaseEmbeddingProvider, BaseTranslatorProvider
-from .siliconflow import SiliconflowRerankProvider
+from .siliconflow import SiliconflowRerankProvider, SiliconflowEmbeddingProvider
 from .flag_embedding import FlagEmbeddingRerankProvider
 from .ollama import OllamaEmbeddingProvider, OllamaTranslatorProvider
 from ..config import Config
@@ -46,6 +46,13 @@ class ProviderFactory:
                 model=Config.EMBEDDING_MODEL,
                 base_url=f"http://{Config.OLLAMA_HOST}:{Config.OLLAMA_PORT}",
                 batch_size=Config.BATCH_SIZE
+            )
+        elif provider_name == "siliconflow":
+            if not Config.SILICONFLOW_API_KEY:
+                raise ValueError("SILICONFLOW_API_KEY 环境变量未设置")
+            return SiliconflowEmbeddingProvider(
+                api_key=Config.SILICONFLOW_API_KEY,
+                model=Config.EMBEDDING_MODEL,
             )
         else:
             raise ValueError(f"不支持的 Embedding Provider: {provider_name}")
