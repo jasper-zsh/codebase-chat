@@ -39,6 +39,10 @@ def create_stats_table(stats: ProcessingStats) -> Table:
     stats_table.add_row("处理的代码行总数", str(stats.total_lines))
     stats_table.add_row("已用时间 (秒)", f"{stats.processing_time:.2f}")
     stats_table.add_row("嵌入向量时间 (秒)", f"{stats.embedding_time:.2f}")
+    stats_table.add_row("Milvus 连接时间 (秒)", f"{stats.milvus_connect_time:.2f}")
+    stats_table.add_row("Milvus 写入时间 (秒)", f"{stats.milvus_write_time:.2f}")
+    stats_table.add_row("Milvus 读取时间 (秒)", f"{stats.milvus_read_time:.2f}")
+    stats_table.add_row("Milvus 刷新时间 (秒)", f"{stats.milvus_flush_time:.2f}")
     stats_table.add_row("文件处理速率 (files/s)", f"{stats.files_per_second:.2f}")
     stats_table.add_row("代码块处理速率 (chunks/s)", f"{stats.chunks_per_second:.2f}")
     stats_table.add_row("代码行处理速率 (lines/s)", f"{stats.lines_per_second:.2f}")
@@ -137,7 +141,7 @@ def index(
             )
             
             # 只传递当前目录作为 repo_name
-            final_stats = asyncio.run(processor.index_files(files, repo_path, repo_path.name))
+            final_stats = asyncio.run(processor.index_files(files, repo_path))
         
     # 显示最终统计信息
     console.print("\n[bold green]处理完成！最终统计：[/bold green]")

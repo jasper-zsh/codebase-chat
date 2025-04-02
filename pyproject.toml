@@ -5,7 +5,7 @@ description = "A tool for code repository analysis and vector embedding for RAG 
 authors = []
 dependencies = [
     "typer>=0.9.0",
-    "lancedb>=0.4",
+    "pymilvus",
     "gitpython>=3.1.40",
     "pydantic>=2.5.2",
     "rich>=13.7.0",

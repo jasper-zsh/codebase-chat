@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Iterator, Optional
 
 from .base import BaseChunkStrategy
-from ..models.code_chunk import CodeChunk
+from ..models.code_chunk import CodeChunk, RepoInfo
 
 class LineChunkStrategy(BaseChunkStrategy):
     """基于行数的代码切片策略"""
@@ -16,7 +16,7 @@ class LineChunkStrategy(BaseChunkStrategy):
         self.chunk_size = chunk_size
         self.overlap = overlap
 
-    def chunk_file(self, file_path: Path, content: str, repo_path: Path, repo_name: str) -> Iterator[CodeChunk]:
+    def chunk_file(self, file_path: Path, content: str, repo_info: RepoInfo) -> Iterator[CodeChunk]:
         lines = content.splitlines()
         total_lines = len(lines)
         
@@ -24,7 +24,7 @@ class LineChunkStrategy(BaseChunkStrategy):
             return
             
         # 计算相对路径
-        rel_path = str(file_path.relative_to(repo_path))
+        rel_path = str(file_path.relative_to(repo_info.repo_path))
             
         start_line = 0
         while start_line < total_lines:
@@ -32,7 +32,8 @@ class LineChunkStrategy(BaseChunkStrategy):
             chunk_content = "\n".join(lines[start_line:end_line])
             
             yield CodeChunk(
-                repo_name=repo_name,
+                repo_name=repo_info.repo_name,
+                branch=[repo_info.branch],
                 file_path=rel_path,
                 start_line=start_line + 1,  # 转换为1-based行号
                 end_line=end_line,

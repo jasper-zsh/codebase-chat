@@ -1,5 +1,12 @@
 from typing import Optional, Dict, Any
 from pydantic import BaseModel
+from pathlib import Path
+
+class RepoInfo(BaseModel):
+    """表示一个Git仓库的信息"""
+    repo_path: Path
+    repo_name: str
+    branch: Optional[str] = None
 
 class CodeChunk(BaseModel):
     """表示一个代码块的数据模型"""
@@ -8,7 +15,7 @@ class CodeChunk(BaseModel):
     start_line: int
     end_line: int
     content: str
-    branch: Optional[str] = None
+    branch: list[str] = []
     embedding: Optional[list[float]] = None
     metadata: Dict[str, Any] = {}
 
