@@ -458,7 +458,7 @@ class CodeProcessor:
             end_line=0,
             content=query,
             repo_name="",
-            branch=""
+            branch=[]
         )
         embedded_chunks = await self.embedding_provider.embed_chunks([dummy_chunk])
         return embedded_chunks[0].embedding 

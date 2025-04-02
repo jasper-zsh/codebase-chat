@@ -158,7 +158,7 @@ def search(
         db_path,
     )
     
-    results = asyncio.run(processor.search(query, limit))
+    results, stats = asyncio.run(processor.search(query, limit))
     
     # 显示结果
     table = Table(show_header=True, header_style="bold magenta")
@@ -173,7 +173,7 @@ def search(
             f"{score:.4f}",
             str(chunk.file_path),
             f"{chunk.start_line}-{chunk.end_line}",
-            chunk.branch or "N/A",
+            ','.join(chunk.branch) or "N/A",
             chunk.content[:100] + "..." if len(chunk.content) > 100 else chunk.content
         )
     
@@ -189,7 +189,7 @@ def mcp_server(
     from mcp.server import FastMCP
     from mcp.server.fastmcp.server import Field, Context
 
-    server = FastMCP('CodebaseChat')
+    server = FastMCP('CodebaseChat', host=host, port=port)
     processor = get_processor(
         DEFAULT_DB_PATH,
         chunk_size=DEFAULT_CHUNK_SIZE,
@@ -201,7 +201,7 @@ def mcp_server(
     async def search(query: str = Field(description="用户输入的原始问题，接受自然语言，不需要提取关键词"), context: Context = None) -> str:
         """搜索代码仓"""
         await context.info(f"搜索代码仓: {query}")
-        results = await processor.search(query, limit=10, context=context)
+        results, stats = await processor.search(query, limit=10, context=context)
         # 将搜索结果转换为字典列表
         formatted_result = ''
         for chunk, score in results:
